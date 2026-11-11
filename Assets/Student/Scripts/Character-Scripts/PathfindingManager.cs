@@ -23,6 +23,8 @@ public class PathfinderManager : MonoBehaviour
 
     private void Start()
     {
+        //MazeGraph.TestGraph(); // Testar grafen
+        BFS.TestBFS();
         if (pathfindingUI == null) pathfindingUI = FindAnyObjectByType<PathfindingUI>();
         if (autoStart) Invoke(nameof(StartPathfinding), startDelay);
     }
@@ -38,9 +40,32 @@ public class PathfinderManager : MonoBehaviour
         }
 
         mapDataInterface = new MapDataAdapter(mapData);
+        // test
+        MazeGraph graph = MazeGraph.BuildGraph(mapDataInterface);
+
+       
         int questIndex = jsonLoader.GetQuestIndex();
         Vector2Int startPos = mapDataInterface.GetQuestStart(questIndex);
         Vector2Int goalPos = mapDataInterface.GetQuestGoal(questIndex);
+
+        // Testa BFS med riktiga grafen
+        int width = mapDataInterface.Width;
+
+        int startId = startPos.y * width + startPos.x;
+        int goalId = goalPos.y * width + goalPos.x;
+
+        List<int> bfsPath = BFS.FindPath(graph, startId, goalId);
+
+        if (bfsPath != null)
+        {
+            Debug.Log("BFS riktig väg: " +
+                string.Join(" -> ", bfsPath));
+        }
+        else
+        {
+            Debug.LogWarning("BFS hittade ingen väg.");
+        }
+
 
         List<Vector2Int> path = PathfindingAlgorithm.FindShortestPath(startPos, goalPos, mapDataInterface);
         if (path == null || path.Count == 0)
