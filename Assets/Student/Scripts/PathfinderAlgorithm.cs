@@ -34,84 +34,84 @@ public static class PathfindingAlgorithm
         return new Vector2Int(id % width, id / width);
     }
 
-    public static List<Vector2Int> FindShortestPath(Vector2Int start, Vector2Int goal, IMapData mapData)
+
+    public static List<Vector2Int> FindShortestPath(
+        Vector2Int start,
+        Vector2Int goal,
+        IMapData mapData)
     {
-        // Most of your solution should be implemented in this method.
-
-        Debug.Log($"START: {start}--- MÅL: {goal}");
-
         width = mapData.Width;
         height = mapData.Height;
 
+        // Samis graf
         GraphBuilder(mapData);
 
         int startId = ToId(start);
         int goalId = ToId(goal);
-        Debug.Log($"GRAFEN finns, start ruta: {startId} har {graph[startId].Count} möjliga vägar");
 
+        //  Dijkstra
+        //List<int> result = Dijkstra.FindPath(
+        //    graph,
+        //    startId,
+        //    goalId
+        //);
 
+        // BFS
+        // För att testa BFS 
+        List<int> result = BFS.FindPath(graph, startId, goalId);
+        Debug.Log("BFS : Activ");
 
-        Queue<int> q = new Queue<int>();
-        q.Enqueue(startId);
-
-        Dictionary<int, int> from = new Dictionary<int, int>();
-        from[startId] = startId;
-
-        bool goalFound = false;
-
-        while (q.Count > 0)
+        if (result == null)
         {
-            int currentId = q.Dequeue();
-
-            if (currentId == goalId)
-            {
-                goalFound = true;
-                break;
-            }
-
-
-            foreach (Edge e in graph[currentId])
-            {
-                int nId = e.To;
-
-                if (!from.ContainsKey(nId))
-                {
-                    q.Enqueue(nId);
-                    from[nId] = currentId;
-                }
-            }
+            Debug.LogWarning("Ingen väg hittades.");
+            return null;
         }
-
-        Debug.Log($"klar, vi kom fram {goalFound}");
-
-        if (!goalFound) return null;
 
         List<Vector2Int> path = new List<Vector2Int>();
-        int curID = goalId;
 
-        while (curID != startId)
+        foreach (int node in result)
         {
-            path.Add(ToPos(curID));
+            path.Add(ToPos(node));
+        }
 
-            curID = from[curID];
+
+        // Kontrollera kostnaden
+        float totalCost = 0f;
+
+        for (int i = 0; i < result.Count - 1; i++)
+        {
+            int fromId = result[i];
+            int toId = result[i + 1];
+
+
+            float cheapestCost = float.PositiveInfinity;
+
+            foreach (Edge edge in graph[fromId])
+            {
+                if (edge.To == toId && edge.Cost < cheapestCost)
+                {
+                    cheapestCost = edge.Cost;
+                }
+            }
+
+            if (float.IsPositiveInfinity(cheapestCost))
+            {
+                Debug.LogError("Kant saknas i grafen!");
+                return null;
+            }
+
+            totalCost += cheapestCost;
 
         }
 
-        path.Add(ToPos(startId));
-        path.Reverse();
+        Debug.Log("Dijkstra beräknad kostnad: " + totalCost);
 
-        string pathStr = "";
-
-        foreach (Vector2Int p in path)
-        {
-            pathStr = pathStr + p.ToString();
-        }
-
-        Debug.Log("steg---- " + path.Count + " väg---- " + pathStr);
+        Debug.Log("Dijkstra hittade en väg!");
+        Debug.Log("Antal noder: " + path.Count);
 
         return path;
-
     }
+
 
     private static void GraphBuilder(IMapData mapData)
     {
@@ -142,16 +142,70 @@ public static class PathfindingAlgorithm
                     if(nPosition.x >= 0 && nPosition.x < width &&  nPosition.y >= 0 && nPosition.y < height)
                     {
                         //check för vägg
-                        if(!IsMovementBlocked(currentPosition,nPosition,mapData))
+
+                        if (!IsMovementBlocked(currentPosition, nPosition, mapData))
                         {
-                            //skapa en kant dit.
                             int nId = ToId(nPosition);
-                            graph[currentId].Add(new Edge(nId, 1f));
 
+                            float wallCost;
 
+                            if (d.x != 0)
+                            {
+                                // Höger eller vänster
+                                int wallX = d.x > 0 ? nPosition.x : currentPosition.x;
+
+                                wallCost = mapData.GetVerticalWallCost(
+                                    wallX,
+                                    currentPosition.y
+                                );
+                            }
+                            else
+                            {
+                                // Upp eller ner
+                                int wallY = d.y > 0 ? nPosition.y : currentPosition.y;
+
+                                wallCost = mapData.GetHorizontalWallCost(
+                                    currentPosition.x,
+                                    wallY
+                                );
+                            }
+
+                            // En vanlig förflyttning kostar minst 1
+                            float cost = Mathf.Max(1f, wallCost);
+
+                            graph[currentId].Add(new Edge(nId, cost));
                         }
+
                     }
                 }
+
+                // Lägg till riktade jumps från aktuell ruta
+                foreach (JumpConnection jump in mapData.GetJumpsFrom(currentPosition))
+                {
+                    Vector2Int target = jump.To;
+
+                    // Kontrollera att målet finns i kartan
+                    if (target.x < 0 || target.x >= width ||
+                        target.y < 0 || target.y >= height)
+                    {
+                        continue;
+                    }
+
+                    // Dijkstra kräver icke-negativa kostnader
+                    if (float.IsNaN(jump.Cost) ||
+                        float.IsInfinity(jump.Cost) ||
+                        jump.Cost < 0f)
+                    {
+                        continue;
+                    }
+
+                    int targetId = ToId(target);
+
+                    graph[currentId].Add(
+                        new Edge(targetId, jump.Cost)
+                    );
+                }
+
 
             }
 
@@ -162,8 +216,8 @@ public static class PathfindingAlgorithm
 
     public static bool IsMovementBlocked(Vector2Int from, Vector2Int to, IMapData mapData)
     {
-        if (mapData.TryGetJumpCost(from, to, out _))
-            return false;
+        //if (mapData.TryGetJumpCost(from, to, out _))
+        //    return false;
 
         int deltaX = to.x - from.x;
         int deltaY = to.y - from.y;
