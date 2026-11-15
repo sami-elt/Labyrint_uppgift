@@ -49,19 +49,101 @@ public static class PathfindingAlgorithm
         int startId = ToId(start);
         int goalId = ToId(goal);
 
-        //  Dijkstra
-        //List<int> result = Dijkstra.FindPath(
-        //    graph,
-        //    startId,
-        //    goalId
-        //);
 
-        // BFS
-        // För att testa BFS 
-        List<int> result = BFS.FindPath(graph, startId, goalId);
-        Debug.Log("BFS : Activ");
 
-        if (result == null)
+       
+        // BFS - test
+      
+        // List<int> result = BFS.FindPath(
+        //     graph, startId, goalId
+        // );
+        // Debug.Log("BFS: Active");
+
+        //******************
+        // GAMLA DIJKSTRA
+        // *****************
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        List<int> oldResult =
+            Dijkstra.FindPath(graph, startId, goalId);
+
+        watch.Stop();
+        double oldTime = watch.Elapsed.TotalMilliseconds;
+
+
+        // ************************
+        // NYA DIJKSTRA MED MINHEAP
+        // ************************
+
+        watch.Restart();
+
+        List<int> newResult =
+            Assets.Student.Scripts.DijkstraPriorityQueue.FindPath(
+                graph, startId, goalId
+            );
+
+        watch.Stop();
+        double newTime = watch.Elapsed.TotalMilliseconds;
+
+
+        // ********************
+        // JÄMFÖR RESULTATEN
+        // *********************
+
+        Debug.Log("==== DIJKSTRA COMPARISON =====");
+
+        Debug.Log("Old Dijkstra: " + oldTime + " ms");
+        Debug.Log("PriorityQueue Dijkstra: " + newTime + " ms");
+
+        if (oldTime > 0 && newTime > 0)
+        {
+            double improvement =
+                (oldTime - newTime) / oldTime * 100.0;
+
+            Debug.Log("Time improvement: " +
+                      improvement.ToString("F2") + " %");
+        }
+
+        Debug.Log("Old Dijkstra nodes: " +
+                  (oldResult == null ? 0 : oldResult.Count));
+
+        Debug.Log("PriorityQueue nodes: " +
+                  (newResult == null ? 0 : newResult.Count));
+
+
+        // ************************
+        // KONTROLLERA VÄGKOSTNADER
+        // ************************
+
+        float oldCost = CalculatePathCost(oldResult);
+        float newCost = CalculatePathCost(newResult);
+
+        Debug.Log("Old Dijkstra cost: " + oldCost);
+        Debug.Log("PriorityQueue cost: " + newCost);
+
+        if (float.IsPositiveInfinity(oldCost) &&
+            float.IsPositiveInfinity(newCost))
+        {
+            Debug.Log("Both algorithms found no path.");
+        }
+        else if (Mathf.Abs(oldCost - newCost) < 0.001f)
+        {
+            Debug.Log("PASS: Both algorithms found the same cost!");
+        }
+        else
+        {
+            Debug.LogError("WARNING: Different path costs!");
+        }
+
+
+        // **********************
+        // ANVÄND NYA DIJKSTRA 
+        // **********************
+
+        List<int> result = newResult;
+
+        if (result == null || result.Count == 0)
         {
             Debug.LogWarning("Ingen väg hittades.");
             return null;
@@ -74,21 +156,38 @@ public static class PathfindingAlgorithm
             path.Add(ToPos(node));
         }
 
+        Debug.Log("Dijkstra PriorityQueue: Active");
+        Debug.Log("Total cost: " + newCost);
+        Debug.Log("Number of nodes: " + path.Count);
 
-        // Kontrollera kostnaden
+        return path;
+    }
+
+
+    // ****************************
+    // BERÄKNA KOSTNADEN FÖR EN VÄG
+    // ****************************
+
+    private static float CalculatePathCost(List<int> path)
+    {
+        if (path == null || path.Count == 0)
+        {
+            return float.PositiveInfinity;
+        }
+
         float totalCost = 0f;
 
-        for (int i = 0; i < result.Count - 1; i++)
+        for (int i = 0; i < path.Count - 1; i++)
         {
-            int fromId = result[i];
-            int toId = result[i + 1];
-
+            int fromId = path[i];
+            int toId = path[i + 1];
 
             float cheapestCost = float.PositiveInfinity;
 
             foreach (Edge edge in graph[fromId])
             {
-                if (edge.To == toId && edge.Cost < cheapestCost)
+                if (edge.To == toId &&
+                    edge.Cost < cheapestCost)
                 {
                     cheapestCost = edge.Cost;
                 }
@@ -97,20 +196,15 @@ public static class PathfindingAlgorithm
             if (float.IsPositiveInfinity(cheapestCost))
             {
                 Debug.LogError("Kant saknas i grafen!");
-                return null;
+                return float.PositiveInfinity;
             }
 
             totalCost += cheapestCost;
-
         }
 
-        Debug.Log("Dijkstra beräknad kostnad: " + totalCost);
-
-        Debug.Log("Dijkstra hittade en väg!");
-        Debug.Log("Antal noder: " + path.Count);
-
-        return path;
+        return totalCost;
     }
+
 
 
     private static void GraphBuilder(IMapData mapData)
